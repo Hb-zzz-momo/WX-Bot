@@ -1,0 +1,4 @@
+{"run_id":"d7d41f83-6ede-42d0-97a1-5c7a70b2836c","target":"文件传输助手","attempt":1,"phase":"open","success":true,"exception_type":"","exception_msg":"","elapsed_ms":6470}
+{"run_id":"d7d41f83-6ede-42d0-97a1-5c7a70b2836c","target":"文件传输助手","attempt":1,"phase":"send","success":true,"exception_type":"","exception_msg":"","elapsed_ms":3401}
+{"run_id":"b760d3ec-a6de-4ab1-921b-1908f6d835c5","target":"我和我老婆","attempt":1,"phase":"open","success":true,"exception_type":"","exception_msg":"","elapsed_ms":6504}
+{"run_id":"b760d3ec-a6de-4ab1-921b-1908f6d835c5","target":"我和我老婆","attempt":1,"phase":"send","success":true,"exception_type":"","exception_msg":"","elapsed_ms":3487}
