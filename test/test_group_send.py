@@ -1,23 +1,29 @@
-from wx4py import WeChatClient
+from database.repository import (
+    get_enabled_groups,
+    get_recent_messages,
+)
 
 
-GROUP_NAME = "我和我老婆"
+groups = get_enabled_groups()
 
 
-def main():
-    print("正在连接微信...")
+for group in groups:
 
-    with WeChatClient(auto_connect=True) as wx:
-        print("微信连接成功")
+    group_name = group["name"]
 
-        result = wx.chat_window.send_to(
-            GROUP_NAME,
-            "🤖 微信 Agent 接入测试成功",
-            target_type="group",
+    print()
+    print("=" * 70)
+    print(group_name)
+    print("=" * 70)
+
+    messages = get_recent_messages(
+        group_name,
+        limit=20,
+    )
+
+    for message in messages:
+
+        print(
+            f"[{message['role']}] "
+            f"{message['content']}"
         )
-
-        print("群消息发送结果：", result)
-
-
-if __name__ == "__main__":
-    main()
