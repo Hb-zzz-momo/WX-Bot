@@ -10,6 +10,14 @@ from langchain.agents import create_agent
 from langchain_openai import ChatOpenAI
 from tools.calculator import calculator
 from tools.weather import get_weather
+from tools.air_quality import get_air_quality
+from tools.amap import (
+    get_ip_location,
+    find_poi_nearby,
+    geocode_location,
+)
+from tools.exchange_rate import exchange_rate
+from tools.express import check_express
 from tools.search import web_search
 from tools.user_memory import remember_user_memory
 from tools.github import(
@@ -61,6 +69,12 @@ def create_wechat_agent():
         tools=[
             calculator, 
             get_weather, 
+            get_air_quality,
+            get_ip_location,
+            find_poi_nearby,
+            geocode_location,
+            exchange_rate,
+            check_express,
             web_search,
             remember_user_memory,
                
@@ -110,6 +124,14 @@ GitHub工具使用规则：
 11. 用户需要在 GitHub 代码中搜索某段实现时，使用 github_search_code。
 12. 用户想看某个具体文件的代码内容时，使用 github_get_file_content。
 13. GitHub 最新数据应以 GitHub Tool 返回结果为准，不要依赖模型记忆猜测。
+
+生活类工具使用规则：
+
+1. 用户询问某城市天气时用 get_weather；询问空气质量/PM2.5 时用 get_air_quality。
+2. 用户问“附近有什么”、“哪里有加油站在哪”等带城市定位的问题时：先用 get_ip_location 定位城市，再用 find_poi_nearby 搜索；用户明确给出城市则直接用 find_poi_nearby。
+3. 用户询问地址对应的坐标为、某个地址在哪时，用 geocode_location。
+4. 用户询问汇率、外币换算时，用 exchange_rate。
+5. 用户给出快递单号询问物流进度时，用 check_express（需要同时知道快递公司，不知道可先询问用户或从单号推断）。
 
 引用规则：                                                                                       
                                                                                                       
