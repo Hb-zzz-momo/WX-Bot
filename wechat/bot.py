@@ -17,6 +17,11 @@ from database.repository import (
 from memory.context_builder import build_recent_group_context
 
 from wechat.identity import resolve_user_id
+from wechat.adapter import to_agent_request
+
+from service.agent_service import (
+    handle_agent_request
+)
 
 load_dotenv()
 
@@ -70,13 +75,12 @@ def ai_reply(event):
     """
     微信群有新消息时执行
     """
+
+    # =========================
+    # 1. 微信平台判断
+    # =========================
+
     group_name = str(event.group)
-    content = str(event.content)
-    
-    
-    # =========================
-    # 0. 查询数据库配置
-    # =========================
 
     group_config = get_group_config(
         group_name
@@ -85,97 +89,40 @@ def ai_reply(event):
     if not group_config:
         return ""
 
-    # 群已停用
     if not group_config["enabled"]:
         return ""
 
-    # 这个群只监听，不启AI
     if not group_config["ai_enabled"]:
         return ""
 
-    # 没有 @机器人
     if not event.is_at_me:
         return ""
 
     try:
 
-        # =============================
-        # 1. 群 Thread Memory
-        # =============================
+        # =========================
+        # 2. 微信 → 标准请求
+        # =========================
 
-        thread_id = (
-            f"wechat-group:{group_name}"
-        )
-
-        # =============================
-        # 2. 最近普通群聊 Memory
-        # =============================
-
-        recent_messages = (
-            get_recent_ambient_messages(
-                group_name=group_name,
-                limit=20,
-            )
-        )
-
-        recent_group_context = (
-            build_recent_group_context(
-                recent_messages
-            )
-        )
-
-        # =============================
-        # 3. 用户身份
-        # =============================
-
-        user_id = resolve_user_id(
+        request = to_agent_request(
             event
         )
-        user_memory = ""
 
-        if user_id is not None:
+        # =========================
+        # 3. 交给Agent业务层
+        # =========================
 
-            rows = get_user_memories(
-                user_id
+        response = (
+            handle_agent_request(
+                request
             )
-
-            user_memory = "\n".join(
-                f"{row['memory_key']}："
-                f"{row['memory_value']}"
-                for row in rows
-            )
-
-        # =============================
-        # 4. Agent
-        # =============================
-
-        answer = ask_agent(
-            user_message=content,
-
-            thread_id=thread_id,
-
-            group_name=group_name,
-
-            recent_group_context=
-                recent_group_context,
-
-            user_id=user_id,
-
-            user_memory=user_memory,
         )
 
-        # =============================
-        # 5. 保存AI回复
-        # =============================
+        # =========================
+        # 4. 返回微信
+        # =========================
 
-        save_message(
-            group_name=group_name,
-            content=answer,
-            role="assistant",
-            sender_name="AI Agent",
-        )
-
-        return answer
+        return response.text
 
     except Exception as e:
 
