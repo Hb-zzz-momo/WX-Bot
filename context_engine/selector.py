@@ -1,5 +1,25 @@
 import re
 
+# =============================
+# 高频泛词
+# =============================
+
+STOP_TERMS = {
+    "什么",
+    "怎么",
+    "怎样",
+    "为何",
+    "为啥",
+    "哪个",
+    "哪些",
+    "是否",
+    "可以",
+    "这个",
+    "那个",
+    "一个",
+    "一下",
+}
+
 from context_engine.models import ContextItem
 
 
@@ -53,7 +73,8 @@ def extract_query_terms(
         # 如果只有1~2个字，直接保留
         if len(block) <= 2:
 
-            terms.add(block)
+            if block not in STOP_TERMS:
+                terms.add(block)
 
             continue
 
@@ -79,9 +100,12 @@ def extract_query_terms(
                 index:index + 2
             ]
 
-            terms.add(term)
+            # 高频泛词没有足够的区分能力，
+            # 不参与相关性评分。
+            if term not in STOP_TERMS:
+                terms.add(term)
 
-    return list(terms)
+                return list(terms)
 
 
 # =============================

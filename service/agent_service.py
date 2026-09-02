@@ -86,19 +86,19 @@ def handle_agent_request(
             )
         )
         print(
-    "[Context Selector]"
-)
-
-    for item in selected_items:
-
-        print(
-            f"score="
-            f"{item.relevance_score} "
-            f"source="
-            f"{item.source} "
-            f"content="
-            f"{item.content}"
+            "[Context Selector]"
         )
+
+        for item in selected_items:
+
+            print(
+                f"score="
+                f"{item.relevance_score} "
+                f"source="
+                f"{item.source} "
+                f"content="
+                f"{item.content}"
+            )
 
         # -------------------------
         # Step 4:

@@ -6,7 +6,13 @@ from memory.checkpoint import (
 )
 
 from dotenv import load_dotenv
+
 from langchain.agents import create_agent
+
+from langchain.agents.middleware import (
+    SummarizationMiddleware,
+)
+
 from langchain_openai import ChatOpenAI
 from tools.registry import get_default_tools
 
@@ -46,7 +52,30 @@ def create_wechat_agent():
         context_schema=AgentContext,
         
         middleware=[
-            inject_runtime_context
+            # =====================================
+            # Short-Term Memory Management
+            # =====================================
+
+            SummarizationMiddleware(
+                model=model,
+
+                # 当Thread中的消息达到40条时，
+                # 开始总结较老的历史。
+                #
+                # 这里故意先用message数量，
+                # 比Token阈值更容易观察和学习。
+                trigger=("messages", 8),
+
+                # 总结后，
+                # 最近12条消息继续保留原文。
+                keep=("messages", 4),
+            ),
+
+            # =====================================
+            # Runtime Context
+            # =====================================
+
+            inject_runtime_context,
         ],
 
         system_prompt="""
