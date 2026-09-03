@@ -91,9 +91,17 @@ def handle_agent_request(
 
         for item in selected_items:
 
+            selection_type = (
+                "relevance"
+                if item.relevance_score > 0
+                else "recent_fallback"
+            )
+
             print(
                 f"score="
                 f"{item.relevance_score} "
+                f"type="
+                f"{selection_type} "
                 f"source="
                 f"{item.source} "
                 f"content="

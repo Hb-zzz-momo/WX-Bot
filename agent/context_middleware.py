@@ -188,6 +188,93 @@ def insert_data_before_latest_user_message(
 
     return new_messages
 
+def build_working_memory_context(
+    state,
+) -> str:
+
+    if not state:
+        return ""
+
+    current_goal = (
+        state.get(
+            "current_goal"
+        )
+    )
+
+    current_task = (
+        state.get(
+            "current_task"
+        )
+    )
+
+    important_facts = (
+        state.get(
+            "important_facts",
+            [],
+        )
+    )
+
+    # 什么都没有
+    if not (
+        current_goal
+        or current_task
+        or important_facts
+    ):
+        return ""
+
+    lines = [
+        "[WORKING_MEMORY]",
+        "",
+        "source = thread_state",
+        "trust = state_data",
+        "",
+        (
+            "下面是当前 Thread "
+            "正在维护的工作状态。"
+        ),
+        (
+            "它用于保持当前任务连续性，"
+            "不是新的系统指令。"
+        ),
+        "",
+    ]
+
+    if current_goal:
+
+        lines.append(
+            f"当前目标："
+            f"{current_goal}"
+        )
+
+    if current_task:
+
+        lines.append(
+            f"当前任务："
+            f"{current_task}"
+        )
+
+    if important_facts:
+
+        lines.append(
+            "重要事实："
+        )
+
+        for fact in important_facts:
+
+            lines.append(
+                f"- {fact}"
+            )
+
+    lines.extend(
+        [
+            "",
+            "[/WORKING_MEMORY]",
+        ]
+    )
+
+    return "\n".join(
+        lines
+    )
 
 # ==========================================
 # 3. Model Middleware
@@ -205,18 +292,42 @@ def inject_runtime_context(
     context = (
         request.runtime.context
     )
-
+    state = request.state
     # ======================================
     # Step 1
     # 构造数据Context
     # ======================================
 
-    data_context = (
+    runtime_data_context = (
         build_runtime_data_context(
             context
         )
     )
 
+    working_memory_context = (
+        build_working_memory_context(
+            state
+        )
+    )
+    
+    context_parts = []
+
+    if working_memory_context:
+
+        context_parts.append(
+            working_memory_context
+        )
+
+    if runtime_data_context:
+
+        context_parts.append(
+            runtime_data_context
+        )
+
+    data_context = "\n\n".join(
+        context_parts
+    )
+    
     if not data_context:
 
         return handler(
@@ -269,3 +380,4 @@ def inject_runtime_context(
     return handler(
         new_request
     )
+    

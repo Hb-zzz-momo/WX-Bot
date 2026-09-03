@@ -13,6 +13,10 @@ from tools.express import check_express
 from tools.search import web_search
 from tools.user_memory import remember_user_memory
 
+from tools.working_memory import (
+    update_working_memory,
+)
+
 from tools.github import (
     github_search_repositories,
     github_get_repository,
@@ -42,6 +46,8 @@ DEFAULT_TOOLS = [
     check_express,
     web_search,
 
+    update_working_memory,
+
     remember_user_memory,
 
     github_search_repositories,
@@ -56,6 +62,8 @@ DEFAULT_TOOLS = [
     github_get_languages,
     github_search_code,
     github_get_file_content,
+    
+    
 ]
 
 

@@ -14,9 +14,9 @@ from database.repository import (
     get_user_memories,
 )
 
-from memory.context_builder import build_recent_group_context
 
-from wechat.identity import resolve_user_id
+
+
 from wechat.adapter import to_agent_request
 
 from service.agent_service import (
@@ -102,7 +102,7 @@ def ai_reply(event):
 
         # =========================
         # 2. 微信 → 标准请求
-        # =========================
+        # =========================W
 
         request = to_agent_request(
             event
