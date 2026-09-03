@@ -32,6 +32,10 @@ from tools.github import (
     github_get_file_content,
 )
 
+from tools.working_memory import (
+    update_working_memory,
+    clear_working_memory,
+)
 
 DEFAULT_TOOLS = [
     calculator,
@@ -47,6 +51,7 @@ DEFAULT_TOOLS = [
     web_search,
 
     update_working_memory,
+    clear_working_memory,
 
     remember_user_memory,
 

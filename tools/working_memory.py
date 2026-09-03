@@ -20,38 +20,26 @@ def update_working_memory(
 
     current_task: str | None = None,
 
-    important_fact: str | None = None,
+    fact_key: str | None = None,
+
+    fact_value: str | None = None,
 ) -> str | Command:
     """
     更新当前 Thread 的 Working Memory。
 
-    当当前用户明确建立或修改当前任务目标、
-    当前正在执行的任务，
-    或提供后续完成当前任务仍然需要的重要事实时，
-    使用这个工具。
+    用于维护当前任务的：
+    - 总体目标
+    - 当前步骤
+    - 后续仍需要使用的重要事实
 
-    这是当前 Thread 的短期工作记忆，
-    不是用户长期记忆。
-
-    Args:
-        current_goal:
-            当前 Thread 的总体目标。
-            只有目标发生变化或需要明确建立目标时填写。
-
-        current_task:
-            当前正在执行的具体任务。
-            只有当前步骤发生变化时填写。
-
-        important_fact:
-            当前任务后续仍然需要使用的一条重要事实。
-            不要保存闲聊、重复信息或无关信息。
+    fact_key 和 fact_value 必须一起提供。
     """
 
     update = {}
 
-    # =====================================
-    # 1. Goal
-    # =====================================
+    # =========================
+    # 1. 更新Goal
+    # =========================
 
     if current_goal:
 
@@ -59,9 +47,9 @@ def update_working_memory(
             "current_goal"
         ] = current_goal.strip()
 
-    # =====================================
-    # 2. Current Task
-    # =====================================
+    # =========================
+    # 2. 更新Current Task
+    # =========================
 
     if current_task:
 
@@ -69,63 +57,158 @@ def update_working_memory(
             "current_task"
         ] = current_task.strip()
 
-    # =====================================
-    # 3. Important Facts
-    # =====================================
+    # =========================
+    # 3. 更新Fact
+    # =========================
 
-    if important_fact:
+    if fact_key and fact_value:
 
-        fact = (
-            important_fact.strip()
-        )
-
-        existing_facts = list(
+        facts = dict(
             runtime.state.get(
                 "important_facts",
-                [],
+                {},
             )
         )
 
-        # 防止重复
-        if (
-            fact
-            and fact
-            not in existing_facts
-        ):
-
-            existing_facts.append(
-                fact
-            )
+        facts[
+            fact_key.strip()
+        ] = fact_value.strip()
 
         update[
             "important_facts"
-        ] = existing_facts
+        ] = facts
 
-    # =====================================
-    # 4. 没有真正更新
-    # =====================================
+    # =========================
+    # 4. 没有任何更新
+    # =========================
 
     if not update:
 
         return (
-            "没有提供需要更新的 "
-            "Working Memory 内容。"
+            "没有提供有效的 "
+            "Working Memory 更新。"
         )
 
-    # =====================================
-    # 5. State Update
-    # =====================================
+    # =========================
+    # 5. 返回State Update
+    # =========================
 
     return Command(
         update={
             **update,
 
-            # Tool Call 必须有对应结果消息
             "messages": [
                 ToolMessage(
                     content=(
                         "Working Memory "
                         "已更新。"
+                    ),
+
+                    tool_call_id=(
+                        runtime.tool_call_id
+                    ),
+                )
+            ],
+        }
+    )
+    
+@tool
+def clear_working_memory(
+    runtime: ToolRuntime,
+
+    clear_goal: bool = False,
+
+    clear_task: bool = False,
+
+    fact_key: str | None = None,
+
+    clear_all_facts: bool = False,
+) -> str | Command:
+    """
+    清理当前 Thread 中已经失效的 Working Memory。
+
+    Args:
+        clear_goal:
+            清除当前总体目标。
+
+        clear_task:
+            清除当前正在执行的任务。
+
+        fact_key:
+            删除某一条已经过期或错误的重要事实。
+
+        clear_all_facts:
+            清除所有当前任务事实。
+    """
+
+    update = {}
+
+    # =========================
+    # Goal
+    # =========================
+
+    if clear_goal:
+
+        update[
+            "current_goal"
+        ] = ""
+
+    # =========================
+    # Current Task
+    # =========================
+
+    if clear_task:
+
+        update[
+            "current_task"
+        ] = ""
+
+    # =========================
+    # Facts
+    # =========================
+
+    facts = dict(
+        runtime.state.get(
+            "important_facts",
+            {},
+        )
+    )
+
+    if clear_all_facts:
+
+        facts = {}
+
+        update[
+            "important_facts"
+        ] = facts
+
+    elif fact_key:
+
+        facts.pop(
+            fact_key,
+            None,
+        )
+
+        update[
+            "important_facts"
+        ] = facts
+
+    if not update:
+
+        return (
+            "没有提供需要清理的 "
+            "Working Memory。"
+        )
+
+    return Command(
+        update={
+            **update,
+
+            "messages": [
+                ToolMessage(
+                    content=(
+                        "Working Memory "
+                        "已清理。"
                     ),
 
                     tool_call_id=(
