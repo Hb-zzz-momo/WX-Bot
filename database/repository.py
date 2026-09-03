@@ -451,6 +451,10 @@ def upsert_user_memory(
     external_user_id: str,
     memory_key: str,
     memory_value: str,
+    source_type: str = (
+        "explicit_user"
+    ),
+    confidence: float = 1.0,
 ):
 
     user_id = get_or_create_user(
@@ -466,10 +470,13 @@ def upsert_user_memory(
             INSERT INTO user_memories (
                 user_id,
                 memory_key,
-                memory_value
+                memory_value,
+                source_type,
+                confidence,
+                status
             )
 
-            VALUES (?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, 'active')
 
             ON CONFLICT(
                 user_id,
@@ -481,6 +488,15 @@ def upsert_user_memory(
                 memory_value =
                     excluded.memory_value,
 
+                source_type =
+                    excluded.source_type,
+
+                confidence =
+                    excluded.confidence,
+
+                status =
+                    'active',
+
                 updated_at =
                     CURRENT_TIMESTAMP
             """,
@@ -488,6 +504,8 @@ def upsert_user_memory(
                 user_id,
                 memory_key,
                 memory_value,
+                source_type,
+                confidence,
             ),
         )
 
@@ -508,7 +526,11 @@ def get_user_memories(
             """
             SELECT
                 user_memories.memory_key,
-                user_memories.memory_value
+                user_memories.memory_value,
+                user_memories.source_type,
+                user_memories.confidence,
+                user_memories.created_at,
+                user_memories.updated_at
 
             FROM user_memories
 
@@ -517,6 +539,8 @@ def get_user_memories(
                    user_memories.user_id
 
             WHERE users.external_user_id = ?
+
+              AND user_memories.status = 'active'
 
             ORDER BY
                 user_memories.updated_at DESC
@@ -527,6 +551,59 @@ def get_user_memories(
         ).fetchall()
 
         return rows
+
+    finally:
+        connection.close()
+        
+def revoke_user_memory(
+    external_user_id: str,
+    memory_key: str,
+) -> bool:
+    """
+    软删除一条用户长期记忆。
+
+    不真正DELETE数据，
+    而是：
+    status = revoked
+
+    返回：
+    True  = 找到并撤销
+    False = 没找到对应Memory
+    """
+
+    connection = get_connection()
+
+    try:
+
+        cursor = connection.execute(
+            """
+            UPDATE user_memories
+
+            SET
+                status = 'revoked',
+                updated_at = CURRENT_TIMESTAMP
+
+            WHERE user_id = (
+                SELECT id
+                FROM users
+                WHERE external_user_id = ?
+            )
+
+            AND memory_key = ?
+
+            AND status = 'active'
+            """,
+            (
+                external_user_id,
+                memory_key,
+            ),
+        )
+
+        connection.commit()
+
+        return (
+            cursor.rowcount > 0
+        )
 
     finally:
         connection.close()

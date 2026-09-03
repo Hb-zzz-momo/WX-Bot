@@ -11,7 +11,10 @@ from tools.amap import (
 from tools.exchange_rate import exchange_rate
 from tools.express import check_express
 from tools.search import web_search
-from tools.user_memory import remember_user_memory
+from tools.user_memory import (
+    remember_user_memory,
+    forget_user_memory,
+)
 
 from tools.working_memory import (
     update_working_memory,
@@ -54,6 +57,7 @@ DEFAULT_TOOLS = [
     clear_working_memory,
 
     remember_user_memory,
+    forget_user_memory,
 
     github_search_repositories,
     github_get_repository,

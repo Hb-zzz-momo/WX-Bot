@@ -180,6 +180,18 @@ def init_database():
 
                 memory_value TEXT NOT NULL,
 
+                source_type TEXT NOT NULL
+                    DEFAULT 'explicit_user',
+
+                confidence REAL NOT NULL
+                    DEFAULT 1.0,
+
+                status TEXT NOT NULL
+                    DEFAULT 'active',
+
+                created_at TEXT NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
                 updated_at TEXT NOT NULL
                     DEFAULT CURRENT_TIMESTAMP,
 
@@ -208,6 +220,75 @@ def init_database():
                 """
             )
 
+        # ==========================================
+        # user_memories schema migration
+        # ==========================================
+
+        if not column_exists(
+            connection,
+            "user_memories",
+            "source_type",
+        ):
+
+            connection.execute(
+                """
+                ALTER TABLE user_memories
+                ADD COLUMN source_type TEXT
+                NOT NULL DEFAULT 'explicit_user'
+                """
+            )
+
+
+        if not column_exists(
+            connection,
+            "user_memories",
+            "confidence",
+        ):
+
+            connection.execute(
+                """
+                ALTER TABLE user_memories
+                ADD COLUMN confidence REAL
+                NOT NULL DEFAULT 1.0
+                """
+            )
+
+
+        if not column_exists(
+            connection,
+            "user_memories",
+            "status",
+        ):
+
+            connection.execute(
+                """
+                ALTER TABLE user_memories
+                ADD COLUMN status TEXT
+                NOT NULL DEFAULT 'active'
+                """
+            )
+
+
+        if not column_exists(
+            connection,
+            "user_memories",
+            "created_at",
+        ):
+
+            connection.execute(
+                """
+                ALTER TABLE user_memories
+                ADD COLUMN created_at TEXT
+                """
+            )
+
+            connection.execute(
+                """
+                UPDATE user_memories
+                SET created_at = updated_at
+                WHERE created_at IS NULL
+                """
+            )
         connection.commit()
 
     finally:
