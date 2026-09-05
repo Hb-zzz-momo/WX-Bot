@@ -1,60 +1,91 @@
 from database.repository import (
     upsert_user_memory,
+    get_active_user_memory,
     get_user_memories,
     revoke_user_memory,
 )
 
+from memory.validator import (
+    normalize_memory_key,
+)
+
 upsert_user_memory(
-    external_user_id="test-user-001",
-
-    memory_key="response_style",
-
-    memory_value="回答简洁",
-
-    source_type="explicit_user",
-
-    confidence=1.0,
+    "test-user",
+    "response_style",
+    "简洁",
+    "explicit_user",
+    1.0,
 )
 
-rows = get_user_memories(
-    "test-user-001"
+row = get_active_user_memory(
+    "test-user",
+    "response_style",
 )
 
-for row in rows:
-    print(dict(row))
-    
 print(
-    revoke_user_memory(
-        "test-user-001",
-        "response_style",
+    dict(row)
+)
+
+print(
+    normalize_memory_key(
+        "answer_style"
     )
 )
 
-rows = get_user_memories(
-    "test-user-001"
-)
-
 print(
-    [dict(row) for row in rows]
+    normalize_memory_key(
+        "reply-style"
+    )
 )
 
 upsert_user_memory(
-    external_user_id="test-user-001",
+    "test-user",
+    "response_style",
+    "简洁",
+    "explicit_user",
+    1.0,
+)
 
-    memory_key="response_style",
+upsert_user_memory(
+    "test-user",
+    "database_project",
+    "正在开发WX-Bot",
+    "explicit_user",
+    1.0,
+)
 
-    memory_value="回答详细",
+upsert_user_memory(
+    "test-user",
+    "favorite_food",
+    "火锅",
+    "explicit_user",
+    1.0,
+)
 
-    source_type="explicit_user",
-
-    confidence=1.0,
+upsert_user_memory(
+    "test-user",
+    "preferred_language",
+    "中文",
+    "explicit_user",
+    1.0,
 )
 
 rows = get_user_memories(
-    "test-user-001"
+    "test-user"
 )
 
-print(
-    [dict(row) for row in rows]
+items = memory_rows_to_items(
+    rows
 )
 
+selected = select_user_memories(
+    items,
+    query="WX-Bot数据库现在做到哪里了？",
+)
+
+for item in selected:
+    print(
+        item.key,
+        item.value,
+        item.relevance_score,
+    )

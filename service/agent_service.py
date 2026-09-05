@@ -17,6 +17,15 @@ from context_engine.selector import (
     select_group_context,
 )
 
+from memory.selector import (
+    select_user_memories,
+)
+
+from memory.builder import (
+    memory_rows_to_items,
+    build_user_memory_context,
+)
+
 from service.thread_resolver import (
     resolve_thread_id
 )
@@ -127,14 +136,70 @@ def handle_agent_request(
 
     if request.user_id:
 
-        rows = get_user_memories(
-            request.user_id
+        # =====================================
+        # Step 1
+        # Long-Term Memory Candidate Pool
+        # =====================================
+
+        memory_rows = (
+            get_user_memories(
+                external_user_id=(
+                    request.user_id
+                ),
+                limit=100,
+            )
         )
 
-        user_memory = "\n".join(
-            f"{row['memory_key']}："
-            f"{row['memory_value']}"
-            for row in rows
+        # =====================================
+        # Step 2
+        # DB Row → MemoryItem
+        # =====================================
+
+        memory_items = (
+            memory_rows_to_items(
+                memory_rows
+            )
+        )
+
+        # =====================================
+        # Step 3
+        # Retrieval Selector
+        # =====================================
+
+        selected_memories = (
+            select_user_memories(
+                items=memory_items,
+
+                query=request.message,
+
+                limit=8,
+            )
+        )
+
+        print(
+            "[Memory Selector]"
+        )
+
+        for item in selected_memories:
+
+            print(
+                f"score="
+                f"{item.relevance_score} "
+                f"key="
+                f"{item.key} "
+                f"value="
+                f"{item.value}"
+            )
+
+        # =====================================
+        # Step 4
+        # Memory Builder
+        # =====================================
+
+        user_memory = (
+            build_user_memory_context(
+                selected_memories
+            )
         )
 
     # =============================

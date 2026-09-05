@@ -10,6 +10,7 @@ from agent.context import (
 from database.repository import (
     upsert_user_memory,
     revoke_user_memory,
+    get_active_user_memory,
 )
 
 from memory.validator import (
@@ -17,6 +18,7 @@ from memory.validator import (
     has_explicit_memory_request,
     has_explicit_forget_request,
     validate_memory_payload,
+    normalize_memory_key,
 )
 
 
@@ -108,27 +110,104 @@ def remember_user_memory(
         )
 
     # ======================================
+    # 4. Canonical Key
+    # ======================================
+
+    canonical_key = (
+        normalize_memory_key(
+            memory_key
+        )
+    )
+
+    new_value = (
+        memory_value.strip()
+    )
+
+
+    # ======================================
+    # 5. Conflict Check
+    # ======================================
+
+    existing = (
+        get_active_user_memory(
+            external_user_id=user_id,
+            memory_key=canonical_key,
+        )
+    )
+
+    if existing:
+
+        old_value = (
+            existing[
+                "memory_value"
+            ]
+        )
+
+        # -----------------------------
+        # 完全相同
+        # 不重复写
+        # -----------------------------
+
+        if old_value == new_value:
+
+            return (
+                "这条长期记忆已经存在，"
+                "无需重复保存。"
+            )
+
+        # -----------------------------
+        # 不同Value
+        #
+        # 当前已经通过：
+        # explicit user authorization
+        #
+        # 所以允许新值覆盖旧值。
+        # -----------------------------
+
+        print(
+            "[Memory Conflict]"
+            f" key={canonical_key}"
+            f" old={old_value}"
+            f" new={new_value}"
+        )
+
+    # ======================================
     # 4. Persist
     # ======================================
 
-    upsert_user_memory(
+    action = upsert_user_memory(
         external_user_id=user_id,
-
-        memory_key=(
-            memory_key.strip()
-        ),
-
-        memory_value=(
-            memory_value.strip()
-        ),
-
+        memory_key=canonical_key,
+        memory_value=new_value,
         source_type="explicit_user",
-
         confidence=1.0,
     )
 
+    if action == "created":
+
+        return (
+            "新的长期记忆已保存。"
+        )
+
+
+    if action == "updated":
+
+        return (
+            "已有长期记忆已更新。"
+        )
+
+
+    if action == "reactivated":
+
+        return (
+            "之前撤销的长期记忆"
+            "已经重新激活。"
+        )
+
+
     return (
-        "长期记忆已保存。"
+        "该长期记忆已经存在，"
+        "无需重复保存。"
     )
     
 @tool

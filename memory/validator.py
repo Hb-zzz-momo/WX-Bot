@@ -45,6 +45,58 @@ FORGET_MEMORY_PATTERNS = [
     r"取消.*记忆",
 ]
 
+# ==========================================
+# Memory Key Alias
+# ==========================================
+
+MEMORY_KEY_ALIASES = {
+    # 回答风格
+    "answer_style": "response_style",
+    "reply_style": "response_style",
+    "response_preference": "response_style",
+
+    # 语言
+    "language": "preferred_language",
+    "language_preference": "preferred_language",
+
+    # 称呼
+    "nickname": "preferred_name",
+    "call_me": "preferred_name",
+}
+
+
+def normalize_memory_key(
+    memory_key: str,
+) -> str:
+    """
+    将模型生成的 Memory Key
+    尽可能标准化。
+
+    V1只做：
+    - lowercase
+    - 空格/横线 → 下划线
+    - alias映射
+    """
+
+    key = (
+        memory_key
+        .strip()
+        .lower()
+        .replace(" ", "_")
+        .replace("-", "_")
+    )
+
+    while "__" in key:
+        key = key.replace(
+            "__",
+            "_",
+        )
+
+    return MEMORY_KEY_ALIASES.get(
+        key,
+        key,
+    )
+
 def get_latest_user_message(
     state,
 ) -> str:

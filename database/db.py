@@ -203,6 +203,30 @@ def init_database():
                 FOREIGN KEY (user_id)
                     REFERENCES users(id)
             );
+            CREATE TABLE IF NOT EXISTS user_memory_events (
+
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                user_id INTEGER NOT NULL,
+
+                memory_key TEXT NOT NULL,
+
+                event_type TEXT NOT NULL,
+
+                old_value TEXT,
+
+                new_value TEXT,
+
+                source_type TEXT NOT NULL,
+
+                confidence REAL,
+
+                created_at TEXT NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
+                FOREIGN KEY (user_id)
+                    REFERENCES users(id)
+            );
             """
         )
 

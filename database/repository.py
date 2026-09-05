@@ -451,11 +451,18 @@ def upsert_user_memory(
     external_user_id: str,
     memory_key: str,
     memory_value: str,
-    source_type: str = (
-        "explicit_user"
-    ),
+    source_type: str = "explicit_user",
     confidence: float = 1.0,
-):
+) -> str:
+    """
+    创建、更新或重新激活长期Memory。
+
+    返回：
+    created
+    updated
+    reactivated
+    unchanged
+    """
 
     user_id = get_or_create_user(
         external_user_id
@@ -465,57 +472,186 @@ def upsert_user_memory(
 
     try:
 
-        connection.execute(
+        # =================================
+        # 1. 先读取当前数据库状态
+        # =================================
+
+        existing = connection.execute(
             """
-            INSERT INTO user_memories (
-                user_id,
-                memory_key,
+            SELECT
                 memory_value,
+                status,
                 source_type,
-                confidence,
-                status
-            )
+                confidence
 
-            VALUES (?, ?, ?, ?, ?, 'active')
+            FROM user_memories
 
-            ON CONFLICT(
-                user_id,
-                memory_key
-            )
+            WHERE user_id = ?
+              AND memory_key = ?
 
-            DO UPDATE SET
-
-                memory_value =
-                    excluded.memory_value,
-
-                source_type =
-                    excluded.source_type,
-
-                confidence =
-                    excluded.confidence,
-
-                status =
-                    'active',
-
-                updated_at =
-                    CURRENT_TIMESTAMP
+            LIMIT 1
             """,
             (
                 user_id,
                 memory_key,
+            ),
+        ).fetchone()
+
+        # =================================
+        # 2. 第一次创建
+        # =================================
+
+        if not existing:
+
+            connection.execute(
+                """
+                INSERT INTO user_memories (
+                    user_id,
+                    memory_key,
+                    memory_value,
+                    source_type,
+                    confidence,
+                    status
+                )
+
+                VALUES (?, ?, ?, ?, ?, 'active')
+                """,
+                (
+                    user_id,
+                    memory_key,
+                    memory_value,
+                    source_type,
+                    confidence,
+                ),
+            )
+
+            _save_user_memory_event(
+                connection=connection,
+                user_id=user_id,
+                memory_key=memory_key,
+                event_type="create",
+                old_value=None,
+                new_value=memory_value,
+                source_type=source_type,
+                confidence=confidence,
+            )
+
+            connection.commit()
+
+            return "created"
+
+        old_value = (
+            existing["memory_value"]
+        )
+
+        old_status = (
+            existing["status"]
+        )
+
+        # =================================
+        # 3. Revoked → Active
+        # =================================
+
+        if old_status == "revoked":
+
+            connection.execute(
+                """
+                UPDATE user_memories
+
+                SET
+                    memory_value = ?,
+                    source_type = ?,
+                    confidence = ?,
+                    status = 'active',
+                    updated_at = CURRENT_TIMESTAMP
+
+                WHERE user_id = ?
+                  AND memory_key = ?
+                """,
+                (
+                    memory_value,
+                    source_type,
+                    confidence,
+                    user_id,
+                    memory_key,
+                ),
+            )
+
+            _save_user_memory_event(
+                connection=connection,
+                user_id=user_id,
+                memory_key=memory_key,
+                event_type="reactivate",
+                old_value=old_value,
+                new_value=memory_value,
+                source_type=source_type,
+                confidence=confidence,
+            )
+
+            connection.commit()
+
+            return "reactivated"
+
+        # =================================
+        # 4. 完全相同
+        # =================================
+
+        if old_value == memory_value:
+
+            return "unchanged"
+
+        # =================================
+        # 5. Active Memory更新
+        # =================================
+
+        connection.execute(
+            """
+            UPDATE user_memories
+
+            SET
+                memory_value = ?,
+                source_type = ?,
+                confidence = ?,
+                status = 'active',
+                updated_at = CURRENT_TIMESTAMP
+
+            WHERE user_id = ?
+              AND memory_key = ?
+            """,
+            (
                 memory_value,
                 source_type,
                 confidence,
+                user_id,
+                memory_key,
             ),
+        )
+
+        _save_user_memory_event(
+            connection=connection,
+            user_id=user_id,
+            memory_key=memory_key,
+            event_type="update",
+            old_value=old_value,
+            new_value=memory_value,
+            source_type=source_type,
+            confidence=confidence,
         )
 
         connection.commit()
 
+        return "updated"
+
+    except Exception:
+
+        connection.rollback()
+        raise
+
     finally:
-        connection.close()
-        
+        connection.close()    
 def get_user_memories(
     external_user_id: str,
+    limit:int = 100
 ):
 
     connection = get_connection()
@@ -544,9 +680,11 @@ def get_user_memories(
 
             ORDER BY
                 user_memories.updated_at DESC
+            LIMIT ?
             """,
             (
                 external_user_id,
+                limit,
             ),
         ).fetchall()
 
@@ -559,51 +697,257 @@ def revoke_user_memory(
     external_user_id: str,
     memory_key: str,
 ) -> bool:
+
+    connection = get_connection()
+
+    try:
+
+        # =================================
+        # 1. 获取用户
+        # =================================
+
+        user = connection.execute(
+            """
+            SELECT id
+            FROM users
+            WHERE external_user_id = ?
+            """,
+            (
+                external_user_id,
+            ),
+        ).fetchone()
+
+        if not user:
+            return False
+
+        user_id = user["id"]
+
+        # =================================
+        # 2. 获取当前Memory
+        # =================================
+
+        existing = connection.execute(
+            """
+            SELECT
+                memory_value,
+                source_type,
+                confidence,
+                status
+
+            FROM user_memories
+
+            WHERE user_id = ?
+              AND memory_key = ?
+
+            LIMIT 1
+            """,
+            (
+                user_id,
+                memory_key,
+            ),
+        ).fetchone()
+
+        if not existing:
+
+            return False
+
+        if (
+            existing["status"]
+            != "active"
+        ):
+            return False
+
+        old_value = (
+            existing["memory_value"]
+        )
+
+        # =================================
+        # 3. Soft Delete
+        # =================================
+
+        connection.execute(
+            """
+            UPDATE user_memories
+
+            SET
+                status = 'revoked',
+                updated_at =
+                    CURRENT_TIMESTAMP
+
+            WHERE user_id = ?
+              AND memory_key = ?
+            """,
+            (
+                user_id,
+                memory_key,
+            ),
+        )
+
+        # =================================
+        # 4. Audit
+        # =================================
+
+        _save_user_memory_event(
+            connection=connection,
+            user_id=user_id,
+            memory_key=memory_key,
+            event_type="revoke",
+            old_value=old_value,
+            new_value=None,
+            source_type=(
+                existing[
+                    "source_type"
+                ]
+            ),
+            confidence=(
+                existing[
+                    "confidence"
+                ]
+            ),
+        )
+
+        connection.commit()
+
+        return True
+
+    except Exception:
+
+        connection.rollback()
+        raise
+
+    finally:
+        connection.close()
+        
+def get_active_user_memory(
+    external_user_id: str,
+    memory_key: str,
+):
     """
-    软删除一条用户长期记忆。
-
-    不真正DELETE数据，
-    而是：
-    status = revoked
-
-    返回：
-    True  = 找到并撤销
-    False = 没找到对应Memory
+    获取用户某个Key当前有效的长期记忆。
     """
 
     connection = get_connection()
 
     try:
 
-        cursor = connection.execute(
+        row = connection.execute(
             """
-            UPDATE user_memories
+            SELECT
+                user_memories.memory_key,
+                user_memories.memory_value,
+                user_memories.source_type,
+                user_memories.confidence,
+                user_memories.created_at,
+                user_memories.updated_at
 
-            SET
-                status = 'revoked',
-                updated_at = CURRENT_TIMESTAMP
+            FROM user_memories
 
-            WHERE user_id = (
-                SELECT id
-                FROM users
-                WHERE external_user_id = ?
-            )
+            JOIN users
+                ON users.id =
+                   user_memories.user_id
 
-            AND memory_key = ?
+            WHERE users.external_user_id = ?
 
-            AND status = 'active'
+              AND user_memories.memory_key = ?
+
+              AND user_memories.status = 'active'
+
+            LIMIT 1
             """,
             (
                 external_user_id,
                 memory_key,
             ),
+        ).fetchone()
+
+        return row
+
+    finally:
+        connection.close()
+        
+def _save_user_memory_event(
+    connection,
+    user_id: int,
+    memory_key: str,
+    event_type: str,
+    old_value: str | None,
+    new_value: str | None,
+    source_type: str,
+    confidence: float | None,
+) -> None:
+    """
+    写入长期Memory审计事件。
+
+    这是Repository内部函数，
+    不应该直接暴露给LLM Tool。
+    """
+
+    connection.execute(
+        """
+        INSERT INTO user_memory_events (
+            user_id,
+            memory_key,
+            event_type,
+            old_value,
+            new_value,
+            source_type,
+            confidence
         )
 
-        connection.commit()
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            memory_key,
+            event_type,
+            old_value,
+            new_value,
+            source_type,
+            confidence,
+        ),
+    )
+    
+def get_user_memory_events(
+    external_user_id: str,
+    limit: int = 100,
+):
 
-        return (
-            cursor.rowcount > 0
-        )
+    connection = get_connection()
+
+    try:
+
+        rows = connection.execute(
+            """
+            SELECT
+                user_memory_events.memory_key,
+                user_memory_events.event_type,
+                user_memory_events.old_value,
+                user_memory_events.new_value,
+                user_memory_events.source_type,
+                user_memory_events.confidence,
+                user_memory_events.created_at
+
+            FROM user_memory_events
+
+            JOIN users
+                ON users.id =
+                   user_memory_events.user_id
+
+            WHERE
+                users.external_user_id = ?
+
+            ORDER BY
+                user_memory_events.id DESC
+
+            LIMIT ?
+            """,
+            (
+                external_user_id,
+                limit,
+            ),
+        ).fetchall()
+
+        return rows
 
     finally:
         connection.close()
