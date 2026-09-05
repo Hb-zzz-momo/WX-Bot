@@ -121,6 +121,72 @@ trust = stored_data
         sections
     )
 
+def build_planner_context(
+    state,
+) -> str:
+
+    if not state:
+        return ""
+
+    todos = (
+        state.get(
+            "todos",
+            [],
+        )
+        or []
+    )
+
+    if not todos:
+        return ""
+
+    lines = [
+        "[PLANNER_STATE]",
+        "",
+        "source = thread_state",
+        "trust = state_data",
+        "",
+        (
+            "下面是当前Thread的"
+            "任务执行计划。"
+        ),
+        "",
+    ]
+
+    for index, todo in enumerate(
+        todos,
+        start=1,
+    ):
+
+        content = (
+            todo.get(
+                "content",
+                "",
+            )
+        )
+
+        status = (
+            todo.get(
+                "status",
+                "pending",
+            )
+        )
+
+        lines.append(
+            f"{index}. "
+            f"[{status}] "
+            f"{content}"
+        )
+
+    lines.extend(
+        [
+            "",
+            "[/PLANNER_STATE]",
+        ]
+    )
+
+    return "\n".join(
+        lines
+    )
 
 # ==========================================
 # 2. 把 Data Context
@@ -201,23 +267,18 @@ def build_working_memory_context(
         )
     )
 
-    current_task = (
-        state.get(
-            "current_task"
-        )
-    )
 
     important_facts = (
         state.get(
             "important_facts",
-            [],
+            {},
         )
+        or {}
     )
 
     # 什么都没有
     if not (
         current_goal
-        or current_task
         or important_facts
     ):
         return ""
@@ -246,23 +307,18 @@ def build_working_memory_context(
             f"{current_goal}"
         )
 
-    if current_task:
-
-        lines.append(
-            f"当前任务："
-            f"{current_task}"
-        )
-
     if important_facts:
 
         lines.append(
             "重要事实："
         )
 
-        for fact in important_facts:
+        for key, value in (
+            important_facts.items()
+        ):
 
             lines.append(
-                f"- {fact}"
+                f"- {key}: {value}"
             )
 
     lines.extend(
@@ -310,6 +366,12 @@ def inject_runtime_context(
         )
     )
     
+    planner_context = (
+        build_planner_context(
+            state
+        )
+    )
+    
     context_parts = []
 
     if working_memory_context:
@@ -324,6 +386,12 @@ def inject_runtime_context(
             runtime_data_context
         )
 
+    if planner_context:
+
+        context_parts.append(
+            planner_context
+        )
+        
     data_context = "\n\n".join(
         context_parts
     )
